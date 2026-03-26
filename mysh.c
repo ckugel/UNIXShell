@@ -194,16 +194,20 @@ static void run_external(Command *cmd)
         apply_redirections(cmd);   /* Stage 3: set up redirections  */
 
         /* [S2] TODO: call execvp here */
+        execvp(cmd->argv[0], cmd->argv); //In the child and replaces entire child process with new program
 
+        //This part below will only run if execvp fails.
         perror(cmd->argv[0]);
         exit(1);
 
     } else {
         /* --- PARENT --- */
         /* [S2] TODO: print PID, waitpid, print exit status */
+        printf("[%d] %s\n", pid, cmd->argv[0]); //Prints the childs PID and command name before it runs
         int status;
-        waitpid(pid, &status, 0);
-        (void)status;  /* remove this line once you use status */
+        waitpid(pid, &status, 0); //Parent blocks until the child finishes (prevents zombies)
+        if (WIFEXITED(status)) //Checks if the child exited normally (not killed by a signal)
+            printf("[%d] %s Exit %d\n", pid, cmd->argv[0], WEXITSTATUS(status)); //Extracts the exit code (0 for success, nonzero for failure)
     }
 }
 
