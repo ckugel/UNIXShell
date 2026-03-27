@@ -183,6 +183,12 @@ static void run_external(Command *cmd)
      *   perror("fork");
      */
 
+    /* Stage 3 edge case: if input file does not exist, do not fork */
+    if (cmd->input_file != NULL && access(cmd->input_file, F_OK) != 0) {
+        perror(cmd->input_file);
+        return;
+    }
+    
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
@@ -239,9 +245,48 @@ static void run_external(Command *cmd)
  */
 static void apply_redirections(Command *cmd)
 {
-    /* [S3] TODO: implement input redirection (cmd->input_file)  */
-    /* [S3] TODO: implement output redirection (cmd->output_file) */
-    (void)cmd;  /* remove this line once you start implementing */
+    int fd;
+
+    /* input redirection: cmd < file */
+    if (cmd->input_file != NULL) {
+        fd = open(cmd->input_file, O_RDONLY);
+        if (fd < 0) {
+            perror(cmd->input_file);
+            exit(1);
+        }
+
+        if (dup2(fd, STDIN_FILENO) < 0) {
+            perror("dup2");
+            close(fd);
+            exit(1);
+        }
+
+        close(fd);
+    }
+
+    /* output redirection: cmd > file  or  cmd >> file */
+    if (cmd->output_file != NULL) {
+        int flags = O_WRONLY | O_CREAT;
+
+        if (cmd->append)
+            flags |= O_APPEND;
+        else
+            flags |= O_TRUNC;
+
+        fd = open(cmd->output_file, flags, 0644);
+        if (fd < 0) {
+            perror(cmd->output_file);
+            exit(1);
+        }
+
+        if (dup2(fd, STDOUT_FILENO) < 0) {
+            perror("dup2");
+            close(fd);
+            exit(1);
+        }
+
+        close(fd);
+    }
 }
 
 /* ================================================================== */
