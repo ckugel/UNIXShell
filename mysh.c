@@ -11,20 +11,20 @@
  * [BP] = Bonus    Pipes (optional, +10 pts extra credit)
  */
 
+#include "parser.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <limits.h>
-#include "parser.h"
+#include <unistd.h>
 
 #define PROMPT "mysh> "
 
-static int  run_builtin(Command *cmd);
+static int run_builtin(Command *cmd);
 static void run_external(Command *cmd);
 static void run_pipe(Command *cmd);
 static void apply_redirections(Command *cmd);
@@ -32,46 +32,45 @@ static void apply_redirections(Command *cmd);
 /* ================================================================== */
 /* main()                                                               */
 /* ================================================================== */
-int main(void)
-{
-    char    line[MAX_LINE];
-    Command cmd;
+int main(void) {
+	char line[MAX_LINE];
+	Command cmd;
 
-    while (1) {
-        /* [S1] Print the prompt */
-        printf("%s", PROMPT);
-        fflush(stdout);
+	while (1) {
+		/* [S1] Print the prompt */
+		printf("%s", PROMPT);
+		fflush(stdout);
 
-        /* [S1] Read one line of input */
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            printf("\n");
-            break;
-        }
+		/* [S1] Read one line of input */
+		if (fgets(line, sizeof(line), stdin) == NULL) {
+			printf("\n");
+			break;
+		}
 
-        /* Parse the line into a Command struct */
-        if (parse_line(line, &cmd) < 0)
-            continue;
+		/* Parse the line into a Command struct */
+		if (parse_line(line, &cmd) < 0)
+			continue;
 
-        /* [S1] If it is a built-in, run_builtin() handles it and returns 0.
-         *      If not a built-in, it returns -1 and we fall through.  */
-        if (run_builtin(&cmd) == 0) {
-            free_command(&cmd);
-            continue;
-        }
+		/* [S1] If it is a built-in, run_builtin() handles it and returns 0.
+		 *      If not a built-in, it returns -1 and we fall through.  */
+		if (run_builtin(&cmd) == 0) {
+			free_command(&cmd);
+			continue;
+		}
 
-        /* [BP] Bonus: pipe command */
-        if (cmd.has_pipe) {
-            run_pipe(&cmd);
-            free_command(&cmd);
-            continue;
-        }
+		/* [BP] Bonus: pipe command */
+		if (cmd.has_pipe) {
+			run_pipe(&cmd);
+			free_command(&cmd);
+			continue;
+		}
 
-        /* [S2] External command */
-        run_external(&cmd);
-        free_command(&cmd);
-    }
+		/* [S2] External command */
+		run_external(&cmd);
+		free_command(&cmd);
+	}
 
-    return 0;
+	return 0;
 }
 
 /* ================================================================== */
@@ -91,60 +90,66 @@ int main(void)
  *   pid       -- print this shell's PID
  *   ppid      -- print this shell's parent PID
  */
-static int run_builtin(Command *cmd)
-{
-    /* Guard: parse_line() guarantees argc >= 1, but be defensive */
-    if (cmd->argc == 0 || cmd->argv[0] == NULL)
-        return -1;
+static int run_builtin(Command *cmd) {
+	/* Guard: parse_line() guarantees argc >= 1, but be defensive */
+	if (cmd->argc == 0 || cmd->argv[0] == NULL)
+		return -1;
 
-    /* ---- exit ---- */
-    if (strcmp(cmd->argv[0], "exit") == 0) {
-        int status = 0;
-        if (cmd->argc > 1) {
-            /* [S1] TODO: validate that argv[1] is a valid integer.
-             * Hint: use strtol() and check errno + endptr instead of atoi(),
-             * which silently ignores trailing garbage like "42abc".          */
-            char *endptr;
-            errno = 0;
-            long val = strtol(cmd->argv[1], &endptr, 10);
-            if (errno != 0 || *endptr != '\0') {
-                fprintf(stderr, "mysh: exit: invalid status '%s'\n", cmd->argv[1]);
-                return 0;   /* stay in shell; do not exit on bad argument */
-            }
-            status = (int)val;
-        }
-        exit(status);
-    }
+	/* ---- exit ---- */
+	if (strcmp(cmd->argv[0], "exit") == 0) {
+		int status = 0;
+		if (cmd->argc > 1) {
+			/* [S1] TODO: validate that argv[1] is a valid integer.
+			 * Hint: use strtol() and check errno + endptr instead of atoi(),
+			 * which silently ignores trailing garbage like "42abc".          */
+			char *endptr;
+			errno = 0;
+			long val = strtol(cmd->argv[1], &endptr, 10);
+			if (errno != 0 || *endptr != '\0') {
+				fprintf(stderr, "mysh: exit: invalid status '%s'\n",
+						cmd->argv[1]);
+				return 0; /* stay in shell; do not exit on bad argument */
+			}
+			status = (int)val;
+		}
+		exit(status);
+	}
 
-    /* ---- cd ---- */
-    if (strcmp(cmd->argv[0], "cd") == 0) {
-        const char *dir = (cmd->argc > 1) ? cmd->argv[1] : getenv("HOME");
-        if (!dir) { fprintf(stderr, "mysh: cd: HOME not set\n"); return 0; }
-        if (chdir(dir) < 0) perror("cd");
-        return 0;
-    }
+	/* ---- cd ---- */
+	if (strcmp(cmd->argv[0], "cd") == 0) {
+		const char *dir = (cmd->argc > 1) ? cmd->argv[1] : getenv("HOME");
+		if (!dir) {
+			fprintf(stderr, "mysh: cd: HOME not set\n");
+			return 0;
+		}
+		if (chdir(dir) < 0)
+			perror("cd");
+		return 0;
+	}
 
-    /* ---- pwd ---- */
-    if (strcmp(cmd->argv[0], "pwd") == 0) {
-        char buf[PATH_MAX];
-        if (getcwd(buf, sizeof(buf)) == NULL) perror("pwd");
-        else printf("%s\n", buf);
-        return 0;
-    }
+	/* ---- pwd ---- */
+	if (strcmp(cmd->argv[0], "pwd") == 0) {
+		char buf[PATH_MAX];
+		if (getcwd(buf, sizeof(buf)) == NULL)
+			perror("pwd");
+		else
+			printf("%s\n", buf);
+		return 0;
+	}
 
-    /* ---- pid ---- */
-    if (strcmp(cmd->argv[0], "pid") == 0) {
-        printf("%d\n", (int)getpid());
-        return 0;
-    }
+	/* ---- pid ---- */
+	if (strcmp(cmd->argv[0], "pid") == 0) {
+		printf("%d\n", (int)getpid());
+		return 0;
+	}
 
-    /* ---- ppid ---- */
-    if (strcmp(cmd->argv[0], "ppid") == 0) {
-        printf("%d\n", (int)getppid());
-        return 0;
-    }
+	/* ---- ppid ---- */
+	if (strcmp(cmd->argv[0], "ppid") == 0) {
+		printf("%d\n", (int)getppid());
+		return 0;
+	}
 
-    return -1;  /* not a built-in */
+	return -1; /* not a built-in */
 }
 
 /* ================================================================== */
@@ -160,61 +165,66 @@ static int run_builtin(Command *cmd)
  *   [<pid>] <cmdname>            -- printed BEFORE child executes
  *   [<pid>] <cmdname> Exit N     -- printed AFTER child exits normally
  */
-static void run_external(Command *cmd)
-{
-    /* [S2] TODO:
-     *
-     * pid_t pid = fork();
-     *
-     * CHILD  (pid == 0):
-     *   apply_redirections(cmd);          <-- Stage 3 hook (safe no-op until S3)
-     *   execvp(cmd->argv[0], cmd->argv);
-     *   perror(cmd->argv[0]);             <-- only reached on exec failure
-     *   exit(1);
-     *
-     * PARENT (pid > 0):
-     *   printf("[%d] %s\n", pid, cmd->argv[0]);
-     *   int status;
-     *   waitpid(pid, &status, 0);
-     *   if (WIFEXITED(status))
-     *       printf("[%d] %s Exit %d\n", pid, cmd->argv[0], WEXITSTATUS(status));
-     *
-     * ERROR  (pid < 0):
-     *   perror("fork");
-     */
+static void run_external(Command *cmd) {
+	/* [S2] TODO:
+	 *
+	 * pid_t pid = fork();
+	 *
+	 * CHILD  (pid == 0):
+	 *   apply_redirections(cmd);          <-- Stage 3 hook (safe no-op until
+	 * S3) execvp(cmd->argv[0], cmd->argv); perror(cmd->argv[0]); <-- only
+	 * reached on exec failure exit(1);
+	 *
+	 * PARENT (pid > 0):
+	 *   printf("[%d] %s\n", pid, cmd->argv[0]);
+	 *   int status;
+	 *   waitpid(pid, &status, 0);
+	 *   if (WIFEXITED(status))
+	 *       printf("[%d] %s Exit %d\n", pid, cmd->argv[0],
+	 * WEXITSTATUS(status));
+	 *
+	 * ERROR  (pid < 0):
+	 *   perror("fork");
+	 */
 
-    /* Stage 3 edge case: if input file does not exist, do not fork */
-    if (cmd->input_file != NULL && access(cmd->input_file, F_OK) != 0) {
-        perror(cmd->input_file);
-        return;
-    }
-    
-    pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        return;
-    }
+	/* Stage 3 edge case: if input file does not exist, do not fork */
+	if (cmd->input_file != NULL && access(cmd->input_file, F_OK) != 0) {
+		perror(cmd->input_file);
+		return;
+	}
 
-    if (pid == 0) {
-        /* --- CHILD --- */
-        apply_redirections(cmd);   /* Stage 3: set up redirections  */
+	pid_t pid = fork();
+	if (pid < 0) {
+		perror("fork");
+		return;
+	}
 
-        /* [S2] TODO: call execvp here */
-        execvp(cmd->argv[0], cmd->argv); //In the child and replaces entire child process with new program
+	if (pid == 0) {
+		/* --- CHILD --- */
+		apply_redirections(cmd); /* Stage 3: set up redirections  */
 
-        //This part below will only run if execvp fails.
-        perror(cmd->argv[0]);
-        exit(1);
+		/* [S2] TODO: call execvp here */
+		execvp(cmd->argv[0], cmd->argv); // In the child and replaces entire
+										 // child process with new program
 
-    } else {
-        /* --- PARENT --- */
-        /* [S2] TODO: print PID, waitpid, print exit status */
-        printf("[%d] %s\n", pid, cmd->argv[0]); //Prints the childs PID and command name before it runs
-        int status;
-        waitpid(pid, &status, 0); //Parent blocks until the child finishes (prevents zombies)
-        if (WIFEXITED(status)) //Checks if the child exited normally (not killed by a signal)
-            printf("[%d] %s Exit %d\n", pid, cmd->argv[0], WEXITSTATUS(status)); //Extracts the exit code (0 for success, nonzero for failure)
-    }
+		// This part below will only run if execvp fails.
+		perror(cmd->argv[0]);
+		exit(1);
+
+	} else {
+		/* --- PARENT --- */
+		/* [S2] TODO: print PID, waitpid, print exit status */
+		printf("[%d] %s\n", pid, cmd->argv[0]); // Prints the childs PID and
+												// command name before it runs
+		int status;
+		waitpid(pid, &status,
+				0); // Parent blocks until the child finishes (prevents zombies)
+		if (WIFEXITED(status)) // Checks if the child exited normally (not
+							   // killed by a signal)
+			printf("[%d] %s Exit %d\n", pid, cmd->argv[0],
+				   WEXITSTATUS(status)); // Extracts the exit code (0 for
+										 // success, nonzero for failure)
+	}
 }
 
 /* ================================================================== */
@@ -243,50 +253,49 @@ static void run_external(Command *cmd)
  *   - What would break if the parent redirected before forking?
  *   - Why must close(fd) follow every dup2(fd, ...)?
  */
-static void apply_redirections(Command *cmd)
-{
-    int fd;
+static void apply_redirections(Command *cmd) {
+	int fd;
 
-    /* input redirection: cmd < file */
-    if (cmd->input_file != NULL) {
-        fd = open(cmd->input_file, O_RDONLY);
-        if (fd < 0) {
-            perror(cmd->input_file);
-            exit(1);
-        }
+	/* input redirection: cmd < file */
+	if (cmd->input_file != NULL) {
+		fd = open(cmd->input_file, O_RDONLY);
+		if (fd < 0) {
+			perror(cmd->input_file);
+			exit(1);
+		}
 
-        if (dup2(fd, STDIN_FILENO) < 0) {
-            perror("dup2");
-            close(fd);
-            exit(1);
-        }
+		if (dup2(fd, STDIN_FILENO) < 0) {
+			perror("dup2");
+			close(fd);
+			exit(1);
+		}
 
-        close(fd);
-    }
+		close(fd);
+	}
 
-    /* output redirection: cmd > file  or  cmd >> file */
-    if (cmd->output_file != NULL) {
-        int flags = O_WRONLY | O_CREAT;
+	/* output redirection: cmd > file  or  cmd >> file */
+	if (cmd->output_file != NULL) {
+		int flags = O_WRONLY | O_CREAT;
 
-        if (cmd->append)
-            flags |= O_APPEND;
-        else
-            flags |= O_TRUNC;
+		if (cmd->append)
+			flags |= O_APPEND;
+		else
+			flags |= O_TRUNC;
 
-        fd = open(cmd->output_file, flags, 0644);
-        if (fd < 0) {
-            perror(cmd->output_file);
-            exit(1);
-        }
+		fd = open(cmd->output_file, flags, 0644);
+		if (fd < 0) {
+			perror(cmd->output_file);
+			exit(1);
+		}
 
-        if (dup2(fd, STDOUT_FILENO) < 0) {
-            perror("dup2");
-            close(fd);
-            exit(1);
-        }
+		if (dup2(fd, STDOUT_FILENO) < 0) {
+			perror("dup2");
+			close(fd);
+			exit(1);
+		}
 
-        close(fd);
-    }
+		close(fd);
+	}
 }
 
 /* ================================================================== */
@@ -329,8 +338,60 @@ static void apply_redirections(Command *cmd)
  *   waitpid(left,  NULL, 0);
  *   waitpid(right, NULL, 0);
  */
-static void run_pipe(Command *cmd)
-{
-    (void)cmd;
-    fprintf(stderr, "mysh: pipes not yet implemented (bonus stage)\n");
+static void run_pipe(Command *cmd) {
+	int pfd[2];
+	if (pipe(pfd) < 0) {
+		perror("pipe");
+		return;
+	}
+
+	pid_t left = fork(); // child 1: left side of pipe
+	if (left < 0) {
+		perror("fork");
+		close(pfd[0]);
+		close(pfd[1]);
+		return;
+	}
+	if (left == 0) {
+		if (dup2(pfd[1], STDOUT_FILENO) < 0) {
+			perror("dup2");
+			exit(1);
+		}
+		close(pfd[0]);
+		close(pfd[1]);
+		execvp(cmd->argv[0], cmd->argv);
+		perror(cmd->argv[0]);
+		exit(1);
+	}
+
+	pid_t right = fork(); // child 2: right side of pipe
+	if (right < 0) {
+		perror("fork");
+		close(pfd[0]);
+		close(pfd[1]);
+		waitpid(left, NULL, 0);
+		return;
+	}
+	if (right == 0) {
+		if (dup2(pfd[0], STDIN_FILENO)) {
+			perror("dup2");
+			exit(1);
+		}
+		close(pfd[0]);
+		close(pfd[1]);
+		execvp(cmd->pipe_argv[0], cmd->pipe_argv);
+		perror(cmd->pipe_argv[0]);
+		exit(1);
+	}
+
+	// If you forget to close `pfd[1]` (the write end of the pipe) in the
+	// parent, the right-side child (the process reading from the pipe) will not
+	// see EOF after the left-side child (the writer) exits. This is because the
+	// pipe remains open for writing in the parent, so the read end never gets
+	// EOF, causing the right-side process to hang waiting for more input.
+	close(pfd[0]);
+	close(pfd[1]);
+
+	waitpid(left, NULL, 0);
+	waitpid(right, NULL, 0);
 }
